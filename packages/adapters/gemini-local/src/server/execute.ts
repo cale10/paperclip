@@ -1,7 +1,7 @@
 import { createProviderStoppedBoundary } from "@paperclipai/adapter-utils/provider-stopped-boundary";
 import { createUsageCheckpointLog } from "@paperclipai/adapter-utils/usage-checkpoint";
 import fs from "node:fs/promises";
-import type { Dirent } from "node:fs";
+import { existsSync, type Dirent } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -207,7 +207,155 @@ async function buildGeminiSkillsDir(
   return target;
 }
 
+
+function findAntigravityRunnerScript(): string | null {
+  const candidates = [
+    path.resolve(process.cwd(), "scripts", "antigravity-agent-runner.mjs"),
+    path.resolve(process.cwd(), "..", "scripts", "antigravity-agent-runner.mjs"),
+    path.resolve(__moduleDir, "..", "..", "..", "scripts", "antigravity-agent-runner.mjs"),
+    path.resolve(__moduleDir, "..", "..", "..", "..", "scripts", "antigravity-agent-runner.mjs"),
+    "Y:\\Local Projects\\web - HTML, CSS, JS, TS, PHP\\paperclip\\scripts\\antigravity-agent-runner.mjs",
+  ];
+  for (const c of candidates) {
+    if (existsSync(c)) return c;
+  }
+  return null;
+}
+
+async function executeAntigravityLocal(
+  ctx: AdapterExecutionContext,
+  runnerScript: string,
+): Promise<AdapterExecutionResult> {
+  const { runId, agent, config, context, onLog, onMeta, onSpawn, authToken } = ctx;
+  const model = asString(config.model, "gemini-3.5-flash").trim();
+  const cwd = asString(config.cwd, process.cwd());
+  const timeoutSec = asNumber(config.timeoutSec, 0);
+  const graceSec = asNumber(config.graceSec, 15);
+
+  const env: Record<string, string> = {
+    ...process.env,
+    ...buildPaperclipEnv(agent, ctx.agentIdentity),
+    ...buildRuntimeToolsEnv(ctx.runtimeTools),
+    PAPERCLIP_RUN_ID: runId,
+    PAPERCLIP_AGENT_ID: agent.id,
+    PAPERCLIP_COMPANY_ID: agent.companyId,
+    PAPERCLIP_API_URL: process.env.PAPERCLIP_API_URL || "http://localhost:3100",
+    PAPERCLIP_CONFIG_MODEL: asString(config.model, "auto").trim(),
+    PAPERCLIP_CONFIG_EFFORT: asString(
+      config.thinkingEffort || config.modelReasoningEffort || config.reasoningEffort || config.effort,
+      "",
+    ).trim(),
+    PAPERCLIP_AGENT_ROLE: asString((agent as unknown as Record<string, unknown>).role, "").trim(),
+    PAPERCLIP_AGENT_NAME: asString(agent.name, "").trim(),
+  };
+  if (authToken) env.PAPERCLIP_API_KEY = authToken;
+  const wakeTaskId =
+    (typeof context.taskId === "string" && context.taskId.trim().length > 0 && context.taskId.trim()) ||
+    (typeof context.issueId === "string" && context.issueId.trim().length > 0 && context.issueId.trim()) ||
+    null;
+  if (wakeTaskId) env.PAPERCLIP_TASK_ID = wakeTaskId;
+  if (typeof context.wakeReason === "string") env.PAPERCLIP_WAKE_REASON = context.wakeReason;
+  if (typeof context.wakeCommentId === "string") env.PAPERCLIP_WAKE_COMMENT_ID = context.wakeCommentId;
+  if (context.conversationMode === true) env.PAPERCLIP_CONVERSATION_MODE = "true";
+
+  const promptTemplate = asString(
+    config.promptTemplate,
+    context.conversationMode === true
+      ? DEFAULT_PAPERCLIP_CONVERSATION_PROMPT_TEMPLATE
+      : DEFAULT_PAPERCLIP_AGENT_PROMPT_TEMPLATE,
+  );
+  const templateData = {
+    agentId: agent.id,
+    companyId: agent.companyId,
+    runId,
+    company: { id: agent.companyId },
+    agent,
+    run: { id: runId, source: "on_demand" },
+    context,
+  };
+  const { taskContextNote, wakePrompt } = selectPaperclipPromptSections(context, {
+    resumedSession: false,
+    includeCommunicationGuidance: false,
+  });
+  const renderedPrompt = renderTemplate(promptTemplate, templateData);
+  const paperclipEnvNote = renderPaperclipEnvNote(env);
+  const apiAccessNote = renderApiAccessNote(env);
+  const prompt = joinPromptSections([
+    selectInitialCommunicationGuidance(context, { resumedSession: false }),
+    wakePrompt,
+    taskContextNote,
+    paperclipEnvNote,
+    apiAccessNote,
+    renderedPrompt,
+  ]);
+
+  await onLog(
+    "stdout",
+    `[paperclip] Routing to Google Antigravity SDK runtime (keyless subscription mode).\n`,
+  );
+
+  if (onMeta) {
+    await onMeta({
+      adapterType: "gemini_local",
+      command: `${process.execPath} ${runnerScript}`,
+      cwd,
+      commandArgs: [runnerScript],
+      env: buildInvocationEnvForLogs(env, {
+        runtimeEnv: env,
+        includeRuntimeKeys: ["HOME"],
+        resolvedCommand: process.execPath,
+      }),
+      prompt,
+      context,
+    });
+  }
+
+  const proc = await runChildProcess(
+    runId,
+    process.execPath,
+    [runnerScript],
+    {
+      cwd,
+      env,
+      timeoutSec,
+      graceSec,
+      stdin: prompt,
+      onLog,
+      onSpawn,
+    },
+  );
+
+  const attributionMatch =
+    proc.stderr.match(/\[paperclip:model-router:attribution\]\s*model=([^\r\n]+)/) ||
+    proc.stdout.match(/\[paperclip:model-router:attribution\]\s*model=([^\r\n]+)/);
+  const attributedModel = attributionMatch ? attributionMatch[1].trim() : model;
+
+  return {
+    exitCode: proc.exitCode ?? 0,
+    signal: proc.signal,
+    timedOut: proc.timedOut,
+    usageBasis: "per_run",
+    provider: "google",
+    biller: "google",
+    model: attributedModel,
+    billingType: "subscription",
+    summary: proc.stdout.trim(),
+    resultJson: { stdout: proc.stdout, stderr: proc.stderr },
+  };
+}
+
 export async function execute(ctx: AdapterExecutionContext): Promise<AdapterExecutionResult> {
+  const resolvedEnvConfig = parseObject(ctx.config.env);
+  const hasApiKey = Boolean(
+    resolvedEnvConfig.GEMINI_API_KEY ||
+    resolvedEnvConfig.GOOGLE_API_KEY ||
+    process.env.GEMINI_API_KEY ||
+    process.env.GOOGLE_API_KEY,
+  );
+  const runnerScript = !process.env.VITEST ? findAntigravityRunnerScript() : null;
+  if (!hasApiKey && runnerScript) {
+    return executeAntigravityLocal(ctx, runnerScript);
+  }
   const providerStop = createProviderStoppedBoundary(ctx.onProviderStopped);
   const engineSelection = await resolveGeminiExecutionEngineForRun(ctx);
   if (engineSelection.unavailableReason) {

@@ -1,0 +1,8 @@
+name = "paperclip-control-plane"
+pages_build_output_dir = "ui/dist"
+compatibility_date = "2024-09-23"
+
+[vars]
+# Default Quick Tunnel origin bridged by Cloudflare Pages Functions.
+# Updated automatically by start_tunnel.bat or overrideable via ?tunnel_origin=https://...
+TUNNEL_ORIGIN = "https://mel-arch-sustained-geo.trycloudflare.com"

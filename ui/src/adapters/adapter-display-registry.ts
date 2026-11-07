@@ -62,7 +62,7 @@ export interface AdapterDisplayInfo {
 }
 
 const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
-  antigravity_runtime: { label: "Google Antigravity", description: "Antigravity through Paperclip Runner", icon: Gem, hideFromVisualSelection: true },
+  antigravity_runtime: { label: "Google Antigravity", description: "Google Antigravity SDK (local language_server)", icon: Gem },
   copilot_runtime: { label: "GitHub Copilot", description: "Copilot through Paperclip Runner", icon: Code, hideFromVisualSelection: true },
   kimi_runtime: { label: "Kimi Code (Runner)", description: "Kimi Code through Paperclip Runner", icon: Moon, hideFromVisualSelection: true },
   acpx_local: {
@@ -95,6 +95,7 @@ const adapterDisplayMap: Record<string, AdapterDisplayInfo> = {
     label: "Gemini CLI",
     description: "Gemini CLI harness",
     icon: Gem,
+    recommended: true,
   },
   grok_local: {
     label: "Grok Build",

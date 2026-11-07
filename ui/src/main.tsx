@@ -34,6 +34,52 @@ import "./index.css";
 
 initPluginBridge(React, ReactDOM);
 
+// Cloudflare Pages Tunnel Bridge support:
+// Allows connecting the Cloudflare Pages frontend (*.pages.dev) to a local PC backend
+// via Cloudflare Quick Tunnel: ?tunnel_origin=https://xxxx.trycloudflare.com
+(() => {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const paramTunnel = params.get("tunnel_origin");
+    if (paramTunnel) {
+      if (paramTunnel === "clear" || paramTunnel === "reset") {
+        localStorage.removeItem("paperclip_tunnel_origin");
+      } else if (paramTunnel.startsWith("http")) {
+        const cleanOrigin = paramTunnel.trim().replace(/\/+$/, "");
+        localStorage.setItem("paperclip_tunnel_origin", cleanOrigin);
+      }
+      params.delete("tunnel_origin");
+      const newSearch = params.toString();
+      const newUrl = window.location.pathname + (newSearch ? `?${newSearch}` : "") + window.location.hash;
+      window.history.replaceState({}, "", newUrl);
+    }
+
+    const originalFetch = window.fetch.bind(window);
+    window.fetch = (input: RequestInfo | URL, init?: RequestInit) => {
+      try {
+        const savedTunnel = localStorage.getItem("paperclip_tunnel_origin");
+        if (savedTunnel) {
+          const urlStr = typeof input === "string" ? input : input instanceof URL ? input.toString() : input.url;
+          if (urlStr && (urlStr.startsWith("/api/") || urlStr === "/api" || urlStr.includes("/api/"))) {
+            const nextInit: RequestInit = { ...(init || {}) };
+            const headers = new Headers(nextInit.headers || (input instanceof Request ? input.headers : undefined));
+            if (!headers.has("x-tunnel-origin")) {
+              headers.set("x-tunnel-origin", savedTunnel);
+            }
+            nextInit.headers = headers;
+            return originalFetch(input, nextInit);
+          }
+        }
+      } catch {
+        // Fallback to standard fetch
+      }
+      return originalFetch(input, init);
+    };
+  } catch {
+    // Ignore storage or URL errors in restricted browser contexts
+  }
+})();
+
 // React 19.2 emits an unbounded stream of performance.measure() entries for its
 // DevTools performance tracks and never clears them; on a long-lived tab they
 // accumulate into millions of native objects (GBs). Reap them periodically.

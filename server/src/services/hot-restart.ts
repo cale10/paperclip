@@ -200,8 +200,9 @@ export async function readProcessStartedAt(
 
   if (platform === "win32") {
     const script = [
-      `$process = Get-Process -Id ${pid} -ErrorAction Stop`,
-      "$process.StartTime.ToUniversalTime().ToString('o')",
+      `$p = Get-CimInstance Win32_Process -Filter "ProcessId = ${pid}" -ErrorAction SilentlyContinue`,
+      `if ($p -and $p.CreationDate) { $p.CreationDate.ToUniversalTime().ToString('o') } else { $process = Get-Process -Id ${pid} -ErrorAction Stop; if ($process.StartTime) { $process.StartTime.ToUniversalTime().ToString('o') } else { throw 'Process StartTime unavailable' } }`,
+
     ].join("; ");
     let stdout: string;
     try {

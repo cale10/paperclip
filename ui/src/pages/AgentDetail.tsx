@@ -1147,6 +1147,7 @@ function LatestRunCard({
     staleTime: 30_000,
   });
 
+  const navigate = useNavigate();
   const summaryRaw = run
     ? run.resultJson
       ? String((run.resultJson as Record<string, unknown>).summary ?? (run.resultJson as Record<string, unknown>).result ?? "")
@@ -1211,8 +1212,16 @@ function LatestRunCard({
         </Link>
       </div>
 
-      <Link
-        to={rowHref}
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={() => navigate(rowHref)}
+        onKeyDown={(e) => {
+          if (e.key === "Enter" || e.key === " ") {
+            e.preventDefault();
+            navigate(rowHref);
+          }
+        }}
         className={cn(
           "block border rounded-lg p-4 space-y-2 w-full no-underline transition-colors hover:bg-muted/50 cursor-pointer",
           isLive ? "border-blue-500/30 shadow-(--shadow-extract-14)" : "border-border"
@@ -1251,7 +1260,7 @@ function LatestRunCard({
             <MarkdownBody className="[&>*:first-child]:mt-0 [&>*:last-child]:mb-0">{summary}</MarkdownBody>
           </div>
         )}
-      </Link>
+      </div>
     </div>
   );
 }

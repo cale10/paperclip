@@ -103,3 +103,8 @@ test-results/
 
 # Content-addressed CI task results
 .turbo/
+
+# Local Antigravity session & prompt caches
+.antigravity_session*
+**/.antigravity_session*
+**/.antigravity_prompts/

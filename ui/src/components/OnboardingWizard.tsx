@@ -155,7 +155,7 @@ type Step = 0 | 1 | 2 | 3 | 4 | 5;
 // wizard's registry-driven approach rather than a fixed union.
 type AdapterType = string;
 
-const ONBOARDING_ADAPTER_TYPES = new Set(["claude_local", "codex_local"]);
+const ONBOARDING_ADAPTER_TYPES = new Set(["claude_local", "codex_local", "gemini_local"]);
 
 function restoreOnboardingAdapterType(savedAdapterType: unknown, provider?: unknown, savedCopilot?: unknown): AdapterType {
   if (savedAdapterType === "paperclip_runner" && provider === "pi") return "pi_local";
@@ -218,6 +218,7 @@ function adapterConfigHasAnthropicApiKey(config: Record<string, unknown>): boole
  */
 const MODEL_SOURCE_BRAND_MARKS: Record<string, string> = {
   claude_local: "/brands/claude-color.svg",
+  gemini_local: "/brands/adapters/gemini-color.svg",
 };
 
 
@@ -255,6 +256,7 @@ const MODEL_SOURCE_INLINE_MARKS: Record<string, ComponentType<{ className?: stri
 const API_KEY_ENV_KEYS: Record<string, string> = {
   claude_local: ANTHROPIC_API_KEY_ENV_KEY,
   codex_local: "OPENAI_API_KEY",
+  gemini_local: "GEMINI_API_KEY",
 };
 
 function apiKeyEnvKeyFor(adapterType: string): string {
@@ -1402,7 +1404,7 @@ function OnboardingWizardInner({
 
   /** Without browser login, show instructions for the selected execution environment. */
   const connectStepHasNoSandbox =
-    credentialMode !== "api" && !canShowAdapterLogin && !authSignalUndecided;
+    adapterType !== "gemini_local" && credentialMode !== "api" && !canShowAdapterLogin && !authSignalUndecided;
 
   /*
     The sequence's derived state. Space and visibility are separate throughout:
@@ -3005,7 +3007,12 @@ function OnboardingWizardInner({
                         setAdapterType(id);
                         if (id !== adapterType) setRunner("auto");
                         if (id !== adapterType) {
-                          if (id === "opencode_local") setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+                          if (id === "gemini_local") {
+                            setCredentialMode("api");
+                            setModel(DEFAULT_GEMINI_LOCAL_MODEL);
+                          } else if (id === "opencode_local") {
+                            setModel(DEFAULT_OPENCODE_LOCAL_MODEL);
+                          }
                           else if (id !== "codex_local") setModel("");
                         }
                         setConnectPhase("collapsing");
@@ -3238,7 +3245,7 @@ function OnboardingWizardInner({
                           });
                         }}
                       />
-                    ) : hasSavedSubscription || localLogin.status === "ready" ? null : connectStepHasNoSandbox ? (
+                    ) : hasSavedSubscription || localLogin.status === "ready" || adapterType === "gemini_local" ? null : connectStepHasNoSandbox ? (
                       canUseLocalLogin && managedProvider ? (
                         <LocalProviderLoginInstructions adapterType={adapterType} login={{ ...localLogin, retry: () => { autoConnectStartedRef.current = false; setError(null); localLogin.retry(); } }} />
                       ) : <p className="text-xs text-muted-foreground">This environment does not support browser sign-in. Choose another sign-in environment or connect with an API key.</p>

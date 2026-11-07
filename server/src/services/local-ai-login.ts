@@ -204,16 +204,13 @@ export function localAiLoginService(db: Db) {
     await managementContext?.reauthorize();
     const adapterType = intent.provider === "google" ? "paperclip_runner" : intent.provider === "openai" ? "codex_local" : intent.provider === "anthropic" ? "claude_local" : "grok_local";
     let retiredAttemptId: string | undefined;
-    if (restart) {
-      const [existing] = await db.select().from(adapterAuthSessions).where(and(
-        eq(adapterAuthSessions.companyId, companyId), eq(adapterAuthSessions.startedByUserId, userId),
-        eq(adapterAuthSessions.adapterType, adapterType), inArray(adapterAuthSessions.status, [...ADAPTER_AUTH_SESSION_ACTIVE_STATES]),
-      ));
-      if (existing) {
-        if (existing.connectionMethod !== LOCAL_LOGIN_METHOD) throw unprocessable("Another sign-in is still open. Finish or cancel it before starting again.");
-        retiredAttemptId = existing.id;
-        await retireOwnedAttempt(companyId, userId, existing.id, managementContext);
-      }
+    const [existingCandidate] = await db.select().from(adapterAuthSessions).where(and(
+      eq(adapterAuthSessions.companyId, companyId), eq(adapterAuthSessions.startedByUserId, userId),
+      eq(adapterAuthSessions.adapterType, adapterType), inArray(adapterAuthSessions.status, [...ADAPTER_AUTH_SESSION_ACTIVE_STATES]),
+    ));
+    if (existingCandidate && existingCandidate.connectionMethod === LOCAL_LOGIN_METHOD && (restart || !sameTarget(existingCandidate.aiConnection as AiConnectionLoginIntent, intent))) {
+      retiredAttemptId = existingCandidate.id;
+      await retireOwnedAttempt(companyId, userId, existingCandidate.id, managementContext);
     }
     const attempt = await db.transaction(async (tx) => {
       await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`ai-local-login:${companyId}:${userId}:${intent.provider}`}, 0))`);
@@ -229,9 +226,8 @@ export function localAiLoginService(db: Db) {
           await prepareHome(existing.id, intent.provider);
           return presentAttempt(existing.id, existing.expiresAt, intent.provider);
         }
-        if (!restart || existing.connectionMethod !== LOCAL_LOGIN_METHOD)
+        if (existing.connectionMethod !== LOCAL_LOGIN_METHOD)
           throw unprocessable("Another sign-in is still open. Finish it, or choose Start sign-in again to replace a local attempt.");
-        if (existing.id !== retiredAttemptId) throw unprocessable("The sign-in attempt changed. Retry Start sign-in again.");
         await rm(loginHome(existing.id), { recursive: true, force: true });
         await tx.update(adapterAuthSessions).set({ status: "cancelled", expiresAt: null, failureReason: null, finishedAt: new Date(), updatedAt: new Date() })
           .where(eq(adapterAuthSessions.id, existing.id));

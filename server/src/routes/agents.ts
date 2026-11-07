@@ -7694,6 +7694,25 @@ export function agentRoutes(
 
       res.set("Cache-Control", "no-cache, no-store");
       res.json(await runRedactions.redactForRun(run.companyId, run.id, result));
+    } catch (err) {
+      if (
+        (run.status === "queued" || run.status === "running") &&
+        err &&
+        typeof err === "object" &&
+        "status" in err &&
+        err.status === 404
+      ) {
+        res.set("Cache-Control", "no-cache, no-store");
+        res.json({
+          runId,
+          store: run.logStore ?? "local_file",
+          logRef: run.logRef ?? null,
+          content: "",
+          nextOffset: undefined,
+        });
+        return;
+      }
+      throw err;
     } finally {
       res.off("close", cancelRead);
     }

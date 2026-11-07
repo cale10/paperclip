@@ -267,7 +267,7 @@ async function checkProviderConsistency(
 
   // If provider was explicitly set but doesn't match what Hermes config says,
   // that's worth flagging.
-  if (explicitProvider && detectedConfig?.provider && explicitProvider !== detectedConfig.provider) {
+  if (explicitProvider && explicitProvider !== 'auto' && detectedConfig?.provider && explicitProvider !== detectedConfig.provider) {
     return {
       level: "warn",
       message: `Provider mismatch: adapterConfig has "${explicitProvider}" but ~/.hermes/config.yaml has "${detectedConfig.provider}". Using adapterConfig value.`,

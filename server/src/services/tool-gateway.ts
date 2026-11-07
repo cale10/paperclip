@@ -19,6 +19,7 @@ import { measureToolDiscovery, measureRunPhase } from "./execution-preparation-t
 import { nativeProviderCatalogFor } from "./native-provider-catalogs.js";
 import { composeConnectionInstructions } from "./connection-instructions.js";
 import { googleWorkspaceToolTarget, googleWorkspaceGrantedScopes, isGoogleWorkspaceToolGranted } from "@paperclipai/shared";
+import { executeGoogleWorkspaceRestFallback, isGoogleWorkspacePreviewPermissionError } from "./google-workspace-rest-fallback.js";
 import { isInsufficientConnectionScope, INSUFFICIENT_CONNECTION_SCOPE_MESSAGE } from "./connection-permission-errors.js";
 import { boundedMcpToolName } from "./mcp-tool-names.js";
 import { browserUseService } from "./browser-use.js";
@@ -6593,6 +6594,42 @@ export function createToolGatewayService(
         typeof connection.config.sourceTemplateKey === "string"
           ? connection.config.sourceTemplateKey
           : null;
+      const rawResultRecord = asRecord(payloadRecord.result);
+      const rawResultText = rawResultRecord ? normalizeMcpContent(rawResultRecord.content) : "";
+      const fallbackTarget =
+        workspaceTarget ??
+        (sourceTemplateKey === "gmail" || sourceTemplateKey?.startsWith("google-") === true
+          ? googleWorkspaceToolTarget(`${sourceTemplateKey.replace(/^google-/, "")}__${entry.toolName}`)
+          : null);
+      if (
+        rawResultRecord?.isError === true &&
+        fallbackTarget &&
+        isGoogleWorkspacePreviewPermissionError(rawResultText)
+      ) {
+        try {
+          const restResult = await executeGoogleWorkspaceRestFallback({
+            service: fallbackTarget.service,
+            leaf: fallbackTarget.leaf,
+            parameters,
+            authorization: credentialHeaders.Authorization ?? "",
+            signal: controller.signal,
+            dispatchRemote,
+          });
+          const normalizedRest = normalizeMcpToolResult(
+            restResult,
+            "mcp_http",
+            false,
+            sourceTemplateKey,
+          );
+          await markCallHealth(
+            "ok",
+            "Google Workspace REST fallback responded to tools/call.",
+          );
+          return { result: normalizedRest, headerSummary, execution };
+        } catch {
+          // Fall through to standard MCP result handling if REST fallback is unavailable
+        }
+      }
       const result = normalizeMcpToolResult(
         payloadRecord.result,
         "mcp_http",

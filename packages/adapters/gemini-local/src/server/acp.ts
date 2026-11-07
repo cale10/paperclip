@@ -1,4 +1,5 @@
 import fs from "node:fs/promises";
+import fsSync from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -457,6 +458,11 @@ export async function testGeminiAcpEnvironment(
   const envConfig = parseObject(config.env);
   const considerHostEnv = !targetIsRemote;
   const hasGca = envConfig.GOOGLE_GENAI_USE_GCA === "true" || (considerHostEnv && process.env.GOOGLE_GENAI_USE_GCA === "true");
+  const homeDir = os.homedir();
+  const hasLocalOauth = considerHostEnv && (
+    fsSync.existsSync(path.join(homeDir, ".gemini", "oauth_creds.json")) ||
+    fsSync.existsSync(path.join(homeDir, ".gemini", "google_accounts.json"))
+  );
   const configGeminiApiKey = envConfig.GEMINI_API_KEY;
   const hostGeminiApiKey = considerHostEnv ? process.env.GEMINI_API_KEY : undefined;
   const configGoogleApiKey = envConfig.GOOGLE_API_KEY;
@@ -466,10 +472,13 @@ export async function testGeminiAcpEnvironment(
     isNonEmpty(hostGeminiApiKey) ||
     isNonEmpty(configGoogleApiKey) ||
     isNonEmpty(hostGoogleApiKey) ||
-    hasGca
+    hasGca ||
+    hasLocalOauth
   ) {
     const source = hasGca
       ? "Google account login (GCA)"
+      : hasLocalOauth
+        ? "local Gemini CLI OAuth credentials (~/.gemini)"
       : isNonEmpty(configGeminiApiKey) || isNonEmpty(configGoogleApiKey)
         ? "adapter config env"
         : "server environment";

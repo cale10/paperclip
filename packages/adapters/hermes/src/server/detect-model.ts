@@ -161,7 +161,7 @@ export function resolveProvider(options: {
   } = options;
 
   // 1. Explicit provider from adapterConfig — user override, always wins
-  if (explicitProvider && (VALID_PROVIDERS as readonly string[]).includes(explicitProvider)) {
+  if (explicitProvider && explicitProvider !== 'auto' && (VALID_PROVIDERS as readonly string[]).includes(explicitProvider)) {
     return { provider: explicitProvider, resolvedFrom: "adapterConfig" };
   }
 
