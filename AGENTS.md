@@ -267,3 +267,46 @@ A change is done when all are true:
 ## Design system
 
 `DESIGN.md` at the repo root is the source of truth for UI design decisions. The token-only rule applies to all `ui/` changes: every color, spacing, radius, type, shadow, and motion value in `ui/src/components/**` and `ui/src/pages/**` comes from the token layer in `ui/src/index.css` — no hex, raw px, arbitrary Tailwind bracket values, or raw `font-size`/`fontSize` declarations in components, outside the documented allowlist in `ui/src/index.css`. Run `pnpm check:token-gates` (`scripts/check-token-gates.mjs`) before committing UI changes — it fails on any violation not covered by that allowlist.
+
+## 12. Local Fork & Upstream Sync Procedure
+
+This instance maintains custom Antigravity, Hermes, and B2B skills integrations while tracking official Paperclip releases from upstream.
+
+### Branch & Remote Roles
+- **`upstream`**: `https://github.com/paperclipai/paperclip.git` (official public repository)
+- **`origin`**: `git@github.com:cale10/paperclip.git` (personal GitHub repository)
+- **`master`**: Clean public upstream tracking branch (never commit custom feature work directly to `master`)
+- **`custom/antigravity-integration`**: Custom integration branch containing:
+  - Antigravity OpenAI bridge daemon (`scripts/antigravity-openai-bridge.mjs`, `pnpm run bridge:antigravity`)
+  - Keyless model routing (Claude Sonnet 5.5 High primary with Gemini 3.8 Flash Medium fallback)
+  - Hermes agent adapter fixes for local keyless OpenAI endpoints
+  - Gemini local adapter Windows/local runtime fixes
+  - B2B catalog skills in `skills/b2b-*/`
+  - Windows run scripts (`start-paperclip.ps1`, `start-paperclip.bat`, etc.)
+
+### Updating from Public Upstream (Never Redo Work)
+When official Paperclip releases updates:
+
+```sh
+# 1. Fetch latest public changes from official Paperclip
+git checkout master
+git pull upstream master
+
+# 2. Merge upstream updates into the custom branch
+git checkout custom/antigravity-integration
+git merge master
+
+# 3. Reinstall & verify build
+pnpm install
+pnpm -r typecheck
+
+# 4. Push updated custom branch to personal repo
+git push origin custom/antigravity-integration
+```
+
+### Initial Push to Personal Remote
+```sh
+git remote add origin git@github.com:cale10/paperclip.git
+git push -u origin custom/antigravity-integration
+git push -u origin master
+```
