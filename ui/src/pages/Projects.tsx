@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import type { Project } from "@paperclipai/shared";
 import { projectsApi } from "../api/projects";
 import { useCompany } from "../context/CompanyContext";
 import { useDialogActions } from "../context/DialogContext";
 import { useBreadcrumbs } from "../context/BreadcrumbContext";
+import { useOptionalToastActions } from "../context/ToastContext";
 import { queryKeys } from "../lib/queryKeys";
 import { EntityRow } from "../components/EntityRow";
 import { ProjectTile } from "../components/ProjectTile";
@@ -70,9 +71,31 @@ export function Projects() {
   const { selectedCompanyId } = useCompany();
   const { openNewProject } = useDialogActions();
   const { setBreadcrumbs } = useBreadcrumbs();
+  const queryClient = useQueryClient();
+  const toast = useOptionalToastActions();
   const [query, setQuery] = useState("");
   const [sortField, setSortField] = useState<ProjectSortField>("name");
   const [sortDir, setSortDir] = useState<ProjectSortDir>("asc");
+
+  const scanMutation = useMutation({
+    mutationFn: () => projectsApi.scanLocal(selectedCompanyId!),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(selectedCompanyId!) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.list(selectedCompanyId!) });
+      toast?.pushToast({
+        title: "Scan complete",
+        body: `Discovered ${data.totalDiscovered} local projects (${data.createdCount} new, ${data.updatedCount} updated, ${data.unchangedCount} up to date).`,
+        tone: "success",
+      });
+    },
+    onError: (err: Error) => {
+      toast?.pushToast({
+        title: "Scan failed",
+        body: err.message || "Failed to scan local projects.",
+        tone: "error",
+      });
+    },
+  });
 
   useEffect(() => {
     setBreadcrumbs([{ label: "Projects" }]);
@@ -125,8 +148,16 @@ export function Projects() {
 
   return (
     <div className="space-y-4">
-      <ProjectsToolbar query={query} onQueryChange={setQuery} sortField={sortField} sortDir={sortDir}
-        onSortChange={(field, direction) => { setSortField(field); setSortDir(direction); }} onNewProject={openNewProject} />
+      <ProjectsToolbar
+        query={query}
+        onQueryChange={setQuery}
+        sortField={sortField}
+        sortDir={sortDir}
+        onSortChange={(field, direction) => { setSortField(field); setSortDir(direction); }}
+        onNewProject={openNewProject}
+        onScanProjects={() => scanMutation.mutate()}
+        isScanning={scanMutation.isPending}
+      />
 
       {error && <p className="text-sm text-destructive">{error.message}</p>}
 

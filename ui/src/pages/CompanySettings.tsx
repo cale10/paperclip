@@ -14,10 +14,12 @@ import { resolveCompanyArchiveDeparture } from "../lib/company-selection";
 import { cloudPortfolioManageUrl } from "../lib/cloudLinks";
 import { navigateTopLevel } from "@/lib/browserNavigation";
 import { companiesApi } from "../api/companies";
+import { projectsApi } from "../api/projects";
 import { assetsApi } from "../api/assets";
 import { queryKeys } from "../lib/queryKeys";
 import { Button } from "@/components/ui/button";
-import { SlidersHorizontal } from "lucide-react";
+import { RefreshCw, SlidersHorizontal } from "lucide-react";
+import { cn } from "../lib/utils";
 import {
   InteractionGovernancePanel,
   applyGovernanceChange,
@@ -94,6 +96,26 @@ export function CompanySettings() {
       setGovernance(company.interactionResolverGovernance ?? {});
       queryClient.invalidateQueries({ queryKey: queryKeys.companies.all });
     }
+  });
+
+  const scanProjectsMutation = useMutation({
+    mutationFn: () => projectsApi.scanLocal(selectedCompanyId!),
+    onSuccess: (data) => {
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.all(selectedCompanyId!) });
+      void queryClient.invalidateQueries({ queryKey: queryKeys.projects.list(selectedCompanyId!) });
+      toastActions?.pushToast({
+        title: "Scan complete",
+        body: `Discovered ${data.totalDiscovered} local projects (${data.createdCount} new, ${data.updatedCount} updated, ${data.unchangedCount} up to date).`,
+        tone: "success",
+      });
+    },
+    onError: (err: Error) => {
+      toastActions?.pushToast({
+        title: "Scan failed",
+        body: err.message || "Failed to scan local projects.",
+        tone: "error",
+      });
+    },
   });
 
   function handleGovernanceChange(
@@ -372,6 +394,29 @@ export function CompanySettings() {
       <AgentObservabilitySettingsSection companyId={selectedCompanyId!} />
 
       <InstanceGeneralSettings embedded />
+
+      {/* Local Projects & Workspaces */}
+      <div className="space-y-4">
+        <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+          Local Projects & Workspaces
+        </div>
+        <div className="space-y-3 border border-border/60 bg-card/40 px-4 py-4 rounded-lg">
+          <p className="text-sm text-muted-foreground">
+            Scan your local projects drive (Y:\Local Projects) and active Antigravity IDE workspaces to register new projects and update folder paths.
+          </p>
+          <div className="flex items-center gap-2">
+            <Button
+              size="sm"
+              variant="outline"
+              disabled={scanProjectsMutation.isPending || !selectedCompanyId}
+              onClick={() => scanProjectsMutation.mutate()}
+            >
+              <RefreshCw className={cn("h-4 w-4 mr-1.5", scanProjectsMutation.isPending && "animate-spin")} />
+              {scanProjectsMutation.isPending ? "Scanning local projects..." : "Scan Local Projects"}
+            </Button>
+          </div>
+        </div>
+      </div>
 
       {/* Danger Zone */}
       <div className="space-y-4">

@@ -56,6 +56,7 @@ import { appendWithCap } from "../adapters/utils.js";
 import { assertEnvironmentSelectionForCompany } from "./environment-selection.js";
 import { environmentService } from "../services/environments.js";
 import { secretService } from "../services/secrets.js";
+import { scanAndSyncLocalProjects } from "../services/local-project-scanner.js";
 
 const WORKSPACE_CONTROL_OUTPUT_MAX_CHARS = 256 * 1024;
 const SHARED_WORKSPACE_STOP_AND_RESTART_ACTIONS = new Set(["stop", "restart"]);
@@ -373,6 +374,13 @@ export function projectRoutes(db: Db) {
     if (!(await assertProjectReadAllowed(req, res, project))) return;
     const summary = await externalObjectsSvc.getProjectSummary(project.id);
     res.json(summary);
+  });
+
+  router.post("/companies/:companyId/projects/scan-local", async (req, res) => {
+    const companyId = req.params.companyId as string;
+    assertCompanyAccess(req, companyId);
+    const result = await scanAndSyncLocalProjects(db, companyId);
+    res.json(result);
   });
 
   router.post("/companies/:companyId/projects", validate(createProjectSchema), async (req, res) => {

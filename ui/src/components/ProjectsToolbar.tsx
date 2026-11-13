@@ -1,7 +1,8 @@
-import { ArrowUpDown, Check, Plus } from "lucide-react";
+import { ArrowUpDown, Check, Plus, RefreshCw } from "lucide-react";
 import { ToolbarSearch } from "./ToolbarSearch";
 import { Button } from "./ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "./ui/popover";
+import { cn } from "../lib/utils";
 
 export type ProjectSortField = "name" | "updated" | "created" | "targetDate";
 export type ProjectSortDir = "asc" | "desc";
@@ -14,13 +15,24 @@ const PROJECT_SORT_OPTIONS: Array<{ field: ProjectSortField; label: string }> = 
 ];
 
 /** Canonical project search, sorting and creation controls. State stays with the page. */
-export function ProjectsToolbar({ query, onQueryChange, sortField, sortDir, onSortChange, onNewProject: openNewProject }: {
+export function ProjectsToolbar({
+  query,
+  onQueryChange,
+  sortField,
+  sortDir,
+  onSortChange,
+  onNewProject: openNewProject,
+  onScanProjects,
+  isScanning,
+}: {
   query: string;
   onQueryChange: (value: string) => void;
   sortField: ProjectSortField;
   sortDir: ProjectSortDir;
   onSortChange: (field: ProjectSortField, direction: ProjectSortDir) => void;
   onNewProject: () => void;
+  onScanProjects?: () => void;
+  isScanning?: boolean;
 }) {
   const sortLabel = PROJECT_SORT_OPTIONS.find(option => option.field === sortField)?.label ?? "Name";
   return <div data-canonical-toolbar="projects" role="toolbar" aria-label="Projects controls" className="flex flex-wrap items-center gap-4">
@@ -61,7 +73,19 @@ export function ProjectsToolbar({ query, onQueryChange, sortField, sortDir, onSo
         </div>
       </PopoverContent>
     </Popover>
-    <div className="design-toolbar-actions">
+    <div className="design-toolbar-actions flex items-center gap-2">
+      {onScanProjects && (
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={onScanProjects}
+          disabled={isScanning}
+          title="Scan local projects from Y:\Local Projects & Antigravity"
+        >
+          <RefreshCw className={cn("h-4 w-4 mr-1", isScanning && "animate-spin")} />
+          <span>{isScanning ? "Scanning…" : "Scan Projects"}</span>
+        </Button>
+      )}
       <Button size="sm" variant="outline" data-toolbar-primary onClick={openNewProject}>
           <Plus className="h-4 w-4 mr-1" />
           Add Project

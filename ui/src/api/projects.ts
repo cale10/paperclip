@@ -34,6 +34,20 @@ export const projectsApi = {
   get: (id: string, companyId?: string) => api.get<Project>(projectPath(id, companyId)),
   create: (companyId: string, data: Record<string, unknown>) =>
     api.post<Project>(`/companies/${companyId}/projects`, data),
+  scanLocal: (companyId: string) =>
+    api.post<{
+      success: boolean;
+      totalDiscovered: number;
+      createdCount: number;
+      updatedCount: number;
+      unchangedCount: number;
+      projects: Array<{
+        name: string;
+        fullPath: string;
+        isAntigravity: boolean;
+        isNew: boolean;
+      }>;
+    }>(`/companies/${companyId}/projects/scan-local`, {}),
   update: (id: string, data: Record<string, unknown>, companyId?: string) =>
     api.patch<Project>(projectPath(id, companyId), data),
   listAccessMembers: (id: string, companyId?: string) =>
