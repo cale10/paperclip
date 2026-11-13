@@ -16,6 +16,7 @@ This Paperclip instance maintains custom Antigravity, Hermes, and B2B skills int
   - Hermes agent adapter fixes for local keyless OpenAI endpoints (`packages/adapters/hermes/`).
   - Gemini local adapter Windows/local runtime fixes (`packages/adapters/gemini-local/`).
   - B2B catalog skills in `skills/b2b-*/` (`b2b-deliverable-auditor`, `b2b-deliverables-pipeline`, `b2b-founder-interview-protocol`, `b2b-handbook-evaluator`).
+  - Local projects & Antigravity workspace sync (`scripts/sync-local-projects.ts`, `pnpm run sync:projects`).
   - Windows run scripts (`start-paperclip.ps1`, `start-paperclip.bat`, `start_tunnel.bat`, etc.).
 
 ---
@@ -56,3 +57,4 @@ git push -u origin master
 - **Antigravity OpenAI Bridge**: Listens on `http://127.0.0.1:8000/v1` (daemon). Run with `pnpm run bridge:antigravity`.
 - **Paperclip Server**: Runs on `http://127.0.0.1:3100` (Postgres on 54329). Start via `powershell -File start-paperclip.ps1` or `pnpm dev`.
 - **Hermes Agent**: Configured via `~/.hermes/config.yaml` with `provider: custom` and `base_url: http://127.0.0.1:8000/v1`.
+- **Local Projects & Antigravity Sync**: Scans `Y:\Local Projects` and Antigravity IDE workspaces and registers them into Paperclip (`pnpm run sync:projects`). Run automatically on startup via `start-paperclip.ps1` or `start-paperclip.bat`.
